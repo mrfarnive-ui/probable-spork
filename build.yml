@@ -1,0 +1,239 @@
+name: Build APK
+on:
+  push:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.7
+      - name: Create project files
+        run: |
+          mkdir -p app/src/main/java/com/example/planner app/src/main/assets
+          cat > settings.gradle <<'EOF_FILE'
+          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories { google(); mavenCentral() }
+          }
+          rootProject.name = "Planner"
+          include ':app'
+          EOF_FILE
+          cat > build.gradle <<'EOF_FILE'
+          plugins { id 'com.android.application' version '8.5.2' apply false }
+          EOF_FILE
+          cat > gradle.properties <<'EOF_FILE'
+          org.gradle.jvmargs=-Xmx2048m
+          android.useAndroidX=true
+          EOF_FILE
+          cat > app/build.gradle <<'EOF_FILE'
+          plugins { id 'com.android.application' }
+          android {
+              namespace 'com.example.planner'
+              compileSdk 34
+              defaultConfig {
+                  applicationId 'com.example.planner'
+                  minSdk 24
+                  targetSdk 34
+                  versionCode 1
+                  versionName '1.0'
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+          }
+          EOF_FILE
+          cat > app/src/main/AndroidManifest.xml <<'EOF_FILE'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET" />
+              <application
+                  android:label="برنامه روزانه"
+                  android:icon="@android:drawable/ic_menu_my_calendar"
+                  android:supportsRtl="true"
+                  android:theme="@android:style/Theme.Material.Light.NoActionBar">
+                  <activity android:name=".MainActivity" android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF_FILE
+          cat > app/src/main/java/com/example/planner/MainActivity.java <<'EOF_FILE'
+          package com.example.planner;
+
+          import android.app.Activity;
+          import android.os.Bundle;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+
+          public class MainActivity extends Activity {
+              private WebView web;
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  web = new WebView(this);
+                  WebSettings s = web.getSettings();
+                  s.setJavaScriptEnabled(true);
+                  s.setDomStorageEnabled(true); // keeps tasks saved on the device
+                  setContentView(web);
+                  web.loadUrl("file:///android_asset/index.html");
+              }
+
+              @Override
+              public void onBackPressed() {
+                  if (web.canGoBack()) web.goBack(); else super.onBackPressed();
+              }
+          }
+          EOF_FILE
+          cat > app/src/main/assets/index.html <<'EOF_FILE'
+          <!DOCTYPE html>
+          <html lang="fa" dir="rtl">
+          <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+          <title>برنامه روزانه</title>
+          <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600;800&display=swap" rel="stylesheet">
+          <style>
+          :root{--bg:#F2F4F8;--sf:#fff;--tx:#1B2440;--mu:#6B7690;--ln:#E1E5EE;--task:#0E8A85;--ev:#5A49D6;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+          @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12161F;--sf:#1B2130;--tx:#E8ECF4;--mu:#8B95AB;--ln:#2A3247;--task:#3CC4B5;--ev:#9A8CFF}}
+          :root[data-theme="dark"]{--bg:#12161F;--sf:#1B2130;--tx:#E8ECF4;--mu:#8B95AB;--ln:#2A3247;--task:#3CC4B5;--ev:#9A8CFF}
+          html{scroll-padding-top:env(safe-area-inset-top,0px)}
+          *{box-sizing:border-box}
+          [hidden]{display:none!important}
+          body{margin:0;background:var(--bg);color:var(--tx);font-family:Vazirmatn,Tahoma,system-ui,sans-serif;line-height:1.6}
+          main{max-width:480px;margin:0 auto;padding:16px 16px 150px}
+          button,input{font:inherit;color:inherit}
+          button{cursor:pointer;border:0;background:none}
+          :focus-visible{outline:2px solid var(--ev);outline-offset:2px}
+          .nav{display:flex;align-items:center;justify-content:space-between;gap:8px}
+          .nav .arr{width:44px;height:44px;border-radius:50%;background:var(--sf);border:1px solid var(--ln);font-size:24px;line-height:1}
+          .day{text-align:center}
+          #dn{display:block;font-size:64px;font-weight:800;line-height:1.1}
+          #wd{font-size:20px;font-weight:600}
+          #my{color:var(--mu);font-size:15px}
+          #td{margin-top:6px;padding:2px 14px;border-radius:99px;background:var(--sf);border:1px solid var(--ln);font-size:14px;color:var(--ev)}
+          .prog{margin:20px 0 14px}
+          #pt{font-size:14px;color:var(--mu);min-height:22px}
+          .bar{height:6px;border-radius:99px;background:var(--ln);overflow:hidden}
+          #pf{height:100%;width:0;background:var(--task);transition:width .25s}
+          ul{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+          li{display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--sf);border-radius:14px;border-inline-start:4px solid var(--task)}
+          li.event{border-inline-start-color:var(--ev)}
+          .ck{flex:none;width:26px;height:26px;border-radius:50%;border:2px solid var(--mu)}
+          li.task .ck{border-radius:8px}
+          li.done .ck{background:var(--task);border-color:var(--task);position:relative}
+          li.event.done .ck{background:var(--ev);border-color:var(--ev)}
+          li.done .ck::after{content:"✓";position:absolute;inset:0;color:#fff;font-size:15px;line-height:22px;text-align:center}
+          .bd{flex:1;min-width:0;display:flex;flex-direction:column}
+          .t{word-break:break-word}
+          .tm{font-size:14px;font-weight:600;color:var(--ev)}
+          li.done .t{text-decoration:line-through;color:var(--mu)}
+          li.done .tm{color:var(--mu)}
+          .rm{flex:none;width:32px;height:32px;color:var(--mu);border-radius:50%}
+          li.empty{display:block;border:1px dashed var(--ln);background:none;text-align:center;color:var(--mu);padding:28px 16px}
+          .add{position:fixed;inset-inline:0;bottom:0;padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px));background:var(--sf);border-top:1px solid var(--ln)}
+          .add>*{max-width:480px;margin-inline:auto}
+          .seg{display:flex;gap:6px;margin-bottom:10px}
+          .seg button{padding:4px 18px;border-radius:99px;border:1px solid var(--ln);font-size:14px}
+          .seg button.on{background:var(--tx);color:var(--bg);border-color:var(--tx)}
+          .row{display:flex;gap:8px}
+          input{min-width:0;padding:10px 12px;border-radius:12px;border:1px solid var(--ln);background:var(--bg)}
+          #ti{flex:1}
+          #tm{width:110px;direction:ltr}
+          #ad{padding:0 18px;border-radius:12px;background:var(--tx);color:var(--bg);font-weight:600}
+          @media (prefers-reduced-motion:reduce){#pf{transition:none}}
+          </style>
+          </head>
+          <body>
+          <main>
+            <div class="nav">
+              <button class="arr" id="pv" aria-label="روز قبل">›</button>
+              <div class="day">
+                <span id="dn"></span><span id="wd"></span><br><span id="my"></span><br>
+                <button id="td" hidden>برگشت به امروز</button>
+              </div>
+              <button class="arr" id="nx" aria-label="روز بعد">‹</button>
+            </div>
+            <div class="prog"><div id="pt"></div><div class="bar"><div id="pf"></div></div></div>
+            <ul id="ls"></ul>
+          </main>
+          <div class="add">
+            <div class="seg"><button data-t="task" class="on">کار</button><button data-t="event">قرار</button></div>
+            <div class="row">
+              <input id="tm" type="time" aria-label="ساعت قرار" hidden>
+              <input id="ti" placeholder="کار جدید…" maxlength="120" aria-label="عنوان">
+              <button id="ad">افزودن</button>
+            </div>
+          </div>
+          <script>
+          const $=s=>document.querySelector(s);
+          const K='planner-v1';
+          let items=[];try{items=JSON.parse(localStorage.getItem(K)||'[]')}catch(e){}
+          const save=()=>{try{localStorage.setItem(K,JSON.stringify(items))}catch(e){}};
+          const key=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+          const noon=()=>{const d=new Date();d.setHours(12,0,0,0);return d};
+          let cur=noon(),type='task';
+          const fd=o=>new Intl.DateTimeFormat('fa-IR-u-ca-persian',o).format(cur);
+          const nf=n=>n.toLocaleString('fa-IR');
+          const fa=s=>s.replace(/\d/g,d=>'۰۱۲۳۴۵۶۷۸۹'[d]);
+          const esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+          function render(){
+            const k=key(cur);
+            $('#dn').textContent=fd({day:'numeric'});
+            $('#wd').textContent=fd({weekday:'long'});
+            $('#my').textContent=fd({month:'long',year:'numeric'});
+            $('#td').hidden=k===key(new Date());
+            const list=items.filter(i=>i.date===k).sort((a,b)=>(a.time||'99:99').localeCompare(b.time||'99:99'));
+            const done=list.filter(i=>i.done).length;
+            $('#pt').textContent=list.length?nf(done)+' از '+nf(list.length)+' انجام شد':'';
+            $('#pf').style.width=list.length?done/list.length*100+'%':'0';
+            $('#ls').innerHTML=list.length?list.map(i=>
+              `<li class="${i.type}${i.done?' done':''}"><button class="ck" data-id="${i.id}" aria-pressed="${!!i.done}" aria-label="انجام شد"></button><div class="bd"><span class="t">${esc(i.title)}</span>${i.time?`<span class="tm">${fa(i.time)}</span>`:''}</div><button class="rm" data-rm="${i.id}" aria-label="حذف">✕</button></li>`
+            ).join(''):'<li class="empty">برای این روز چیزی ثبت نشده. اولین کار یا قرار را پایین اضافه کنید.</li>';
+          }
+          function shift(n){cur.setDate(cur.getDate()+n);render()}
+          $('#pv').onclick=()=>shift(-1);
+          $('#nx').onclick=()=>shift(1);
+          $('#td').onclick=()=>{cur=noon();render()};
+          document.querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{
+            type=b.dataset.t;
+            document.querySelectorAll('.seg button').forEach(x=>x.classList.toggle('on',x===b));
+            $('#tm').hidden=type!=='event';
+            $('#ti').placeholder=type==='event'?'قرار جدید…':'کار جدید…';
+          });
+          function add(){
+            const title=$('#ti').value.trim();
+            if(!title){$('#ti').focus();return}
+            items.push({id:Date.now().toString(36),date:key(cur),type,title,time:type==='event'?$('#tm').value:'',done:false});
+            save();$('#ti').value='';$('#tm').value='';render();
+          }
+          $('#ad').onclick=add;
+          $('#ti').onkeydown=e=>{if(e.key==='Enter')add()};
+          $('#ls').onclick=e=>{
+            const b=e.target.closest('button');if(!b)return;
+            if(b.dataset.id){const i=items.find(x=>x.id===b.dataset.id);if(i)i.done=!i.done}
+            else if(b.dataset.rm){items=items.filter(x=>x.id!==b.dataset.rm)}
+            save();render();
+          };
+          render();
+          </script>
+          </body>
+          </html>
+          EOF_FILE
+      - run: gradle assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: planner-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
